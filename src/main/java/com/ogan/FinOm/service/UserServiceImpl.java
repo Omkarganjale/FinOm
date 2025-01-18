@@ -1,20 +1,26 @@
 package com.ogan.FinOm.service;
 
-import com.ogan.FinOm.dto.*;
-import com.ogan.FinOm.dto.requests.EnquireRequest;
+import com.ogan.FinOm.dto.AccountInfo;
+import com.ogan.FinOm.dto.BankResponse;
+import com.ogan.FinOm.dto.TransactionDTO;
+import com.ogan.FinOm.dto.requests.EnquiryRequest;
 import com.ogan.FinOm.dto.requests.TransactionRequest;
+import com.ogan.FinOm.dto.requests.TransferRequest;
 import com.ogan.FinOm.dto.requests.UserRequest;
 import com.ogan.FinOm.entity.User;
+import com.ogan.FinOm.enums.TransactionType;
 import com.ogan.FinOm.mapper.UserMapper;
 import com.ogan.FinOm.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.function.Predicate;
 
 import static com.ogan.FinOm.utils.AccountUtils.getAccountName;
 import static com.ogan.FinOm.utils.Constants.*;
 import static com.ogan.FinOm.utils.EmailUtils.getNewAccountCreatedEmailAlert;
+import static com.ogan.FinOm.utils.EmailUtils.getTransactionSuccessEmailAlert;
 import static com.ogan.FinOm.utils.Predicates.*;
 
 @Service
@@ -28,6 +34,9 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     EmailService emailService;
+
+    @Autowired
+    TransactionService transactionService;
 
     /**
      * Creates a new User
@@ -67,9 +76,9 @@ public class UserServiceImpl implements UserService {
      * Account Balance Enquiry for given accountNumber
      */
     @Override
-    public BankResponse enquireBalance(EnquireRequest enquireRequest) {
+    public BankResponse enquireBalance(EnquiryRequest enquiryRequest) {
 
-        boolean accountExists = userRepository.existsByAccountNumber(enquireRequest.getAccountNumber());
+        boolean accountExists = userRepository.existsByAccountNumber(enquiryRequest.getAccountNumber());
         if(!accountExists){
             return BankResponse.builder()
                     .responseCode(ACCOUNT_UNAVAILABLE_CODE)
@@ -77,7 +86,7 @@ public class UserServiceImpl implements UserService {
                     .build();
         }
 
-        User user = userRepository.findByAccountNumber(enquireRequest.getAccountNumber());
+        User user = userRepository.findByAccountNumber(enquiryRequest.getAccountNumber());
 
         return BankResponse.builder()
                 .responseCode(ENQUIRY_SUCCESS_CODE)
@@ -95,13 +104,13 @@ public class UserServiceImpl implements UserService {
      * Account Name Enquiry for given accountNumber
      */
     @Override
-    public String enquireName(EnquireRequest enquireRequest) {
-        boolean accountExists = userRepository.existsByAccountNumber(enquireRequest.getAccountNumber());
+    public String enquireName(EnquiryRequest enquiryRequest) {
+        boolean accountExists = userRepository.existsByAccountNumber(enquiryRequest.getAccountNumber());
         if(!accountExists){
             return ACCOUNT_UNAVAILABLE_MSG;
         }
 
-        User user = userRepository.findByAccountNumber(enquireRequest.getAccountNumber());
+        User user = userRepository.findByAccountNumber(enquiryRequest.getAccountNumber());
 
         return getAccountName(user);
     }
@@ -130,6 +139,7 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByAccountNumber(transactionRequest.getAccountNumber());
         user.setAccountBalance(user.getAccountBalance().add(transactionRequest.getAmount()));
         User savedUser = userRepository.save(user);
+        transactionService.saveTransactionRequest(transactionRequest);
         return BankResponse.builder()
                 .responseCode(TRANSACTION_SUCCESS_CODE)
                 .responseMessage(TRANSACTION_SUCCESS_MSG)
@@ -142,6 +152,9 @@ public class UserServiceImpl implements UserService {
                 ).build();
     }
 
+    /**
+     * Debits an Account for Withdrawal Transactions
+     */
     @Override
     public BankResponse debitAccount(TransactionRequest transactionRequest){
         boolean accountExists = userRepository.existsByAccountNumber(transactionRequest.getAccountNumber());
@@ -171,6 +184,7 @@ public class UserServiceImpl implements UserService {
 
         user.setAccountBalance(user.getAccountBalance().subtract(transactionRequest.getAmount()));
         User savedUser = userRepository.save(user);
+        transactionService.saveTransactionRequest(transactionRequest);
         return BankResponse.builder()
                 .responseCode(TRANSACTION_SUCCESS_CODE)
                 .responseMessage(TRANSACTION_SUCCESS_MSG)
@@ -183,7 +197,71 @@ public class UserServiceImpl implements UserService {
                 ).build();
     }
 
-    //TODO:  transfer, userValidation (accountStatus=ACTIVE)
+    /**
+     * Transfers Balance from one account to another
+     */
+    @Override
+    public BankResponse transfer(TransferRequest transferRequest) {
+
+        if(!userRepository.existsByAccountNumber(transferRequest.getSenderAccountNumber())){
+            return BankResponse.builder()
+                    .responseCode(ACCOUNT_UNAVAILABLE_CODE)
+                    .responseMessage("Sender ".concat(ACCOUNT_UNAVAILABLE_MSG))
+                    .build();
+        }
+
+        User debitUser = userRepository.findByAccountNumber(transferRequest.getSenderAccountNumber());
+
+        if(debitUser.getAccountBalance().compareTo(transferRequest.getAmount())<0){
+            return BankResponse.builder()
+                    .responseCode(INSUFFICIENT_ACC_BALANCE_CODE)
+                    .responseMessage(INSUFFICIENT_ACC_BALANCE_MSG)
+                    .build();
+        }
+
+        if(!userRepository.existsByAccountNumber(transferRequest.getRecipientAccountNumber())){
+            return BankResponse.builder()
+                    .responseCode(ACCOUNT_UNAVAILABLE_CODE)
+                    .responseMessage("Recipient ".concat(ACCOUNT_UNAVAILABLE_MSG))
+                    .build();
+        }
+
+        if(transferRequest.getAmount().compareTo(BigDecimal.ZERO)<=0 || transferRequest.getSenderAccountNumber().equals(transferRequest.getRecipientAccountNumber())){
+            return BankResponse.builder()
+                    .responseCode(TRANSACTION_VALIDATION_FAILED_CODE)
+                    .responseMessage(TRANSACTION_VALIDATION_FAILED_MSG)
+                    .build();
+        }
+
+        User creditUser = userRepository.findByAccountNumber(transferRequest.getRecipientAccountNumber());
+
+        debitUser.setAccountBalance(debitUser.getAccountBalance().subtract(transferRequest.getAmount()));
+        creditUser.setAccountBalance(creditUser.getAccountBalance().add(transferRequest.getAmount()));
+
+        debitUser = userRepository.save(debitUser);
+        creditUser = userRepository.save(creditUser);
+
+        emailService.sendEmail(getTransactionSuccessEmailAlert(debitUser, TransactionType.DEBIT, transferRequest.getAmount()));
+        emailService.sendEmail(getTransactionSuccessEmailAlert(creditUser, TransactionType.CREDIT, transferRequest.getAmount()));
+
+        transactionService.saveTransaction(TransactionDTO.builder()
+                .accountNumber(debitUser.getAccountNumber())
+                .transactionType(TransactionType.DEBIT)
+                .amount(transferRequest.getAmount())
+                .build());
+        transactionService.saveTransaction(TransactionDTO.builder()
+                .accountNumber(creditUser.getAccountNumber())
+                .transactionType(TransactionType.CREDIT)
+                .amount(transferRequest.getAmount())
+                .build());
+
+        return BankResponse.builder()
+                .responseCode(TRANSACTION_SUCCESS_CODE)
+                .responseMessage(TRANSACTION_SUCCESS_MSG)
+                .build();
+    }
+
+    //TODO:  userValidation (accountStatus=ACTIVE)
 
     @SafeVarargs
     private static <TransactionRequest> boolean validateTransactionRequest(TransactionRequest testObject, Predicate<TransactionRequest>... predicates) {

@@ -45,4 +45,9 @@ public class UserRequest {
             name = "Phone Number of Account Holder"
     )
     private String phoneNumber;
+
+    @Schema(
+            name = "User Password"
+    )
+    private String password;
 }

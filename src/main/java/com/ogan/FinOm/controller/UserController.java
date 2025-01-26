@@ -2,6 +2,7 @@ package com.ogan.FinOm.controller;
 
 import com.ogan.FinOm.dto.BankResponse;
 import com.ogan.FinOm.dto.requests.EnquiryRequest;
+import com.ogan.FinOm.dto.requests.LoginRequest;
 import com.ogan.FinOm.dto.requests.TransactionRequest;
 import com.ogan.FinOm.dto.requests.TransferRequest;
 import com.ogan.FinOm.dto.requests.UserRequest;
@@ -10,7 +11,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/user")
@@ -31,6 +36,19 @@ public class UserController {
     @PostMapping(path="/add")
     public BankResponse createNewAccount(@RequestBody UserRequest userRequest){
         return userService.createUser(userRequest);
+    }
+
+    @Operation(
+            summary = "Login",
+            description = "Authenticates user email and password and returns JWT"
+    )
+    @ApiResponse(
+            responseCode = "204",
+            description = "Http Status 204 Authenticated"
+    )
+    @PostMapping(path="/login")
+    public BankResponse login(@RequestBody LoginRequest loginRequest){
+        return userService.login(loginRequest);
     }
 
     @Operation(

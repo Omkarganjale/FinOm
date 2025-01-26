@@ -10,6 +10,9 @@ public class Constants {
     public static final String INSUFFICIENT_ACC_BALANCE_CODE = "104";
     public static final String INSUFFICIENT_ACC_BALANCE_MSG = "Insufficient Account Balance";
 
+    public static final String UNAUTHORIZED_TRANSACTION_CODE = "105";
+    public static final String UNAUTHORIZED_TRANSACTION_MSG = "User is Unauthorized to perform requested Transaction";
+
 
     public static final String ACCOUNT_CREATED_CODE = "201";
     public static final String ACCOUNT_CREATED_MSG = "Account created Successfully";
@@ -17,5 +20,7 @@ public class Constants {
     public static final String TRANSACTION_SUCCESS_MSG = "Transaction was Successful";
     public static final String ENQUIRY_SUCCESS_CODE = "203";
     public static final String ENQUIRY_SUCCESS_MSG = "Enquiry was Successful";
+    public static final String LOGIN_SUCCESS_CODE = "204";
+    public static final String LOGIN_SUCCESS_MSG = "Login was Successful";
 
 }

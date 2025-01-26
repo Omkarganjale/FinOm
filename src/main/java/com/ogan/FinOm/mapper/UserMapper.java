@@ -2,6 +2,7 @@ package com.ogan.FinOm.mapper;
 
 import com.ogan.FinOm.dto.requests.UserRequest;
 import com.ogan.FinOm.entity.User;
+import com.ogan.FinOm.enums.Role;
 import org.mapstruct.*;
 
 import java.math.BigDecimal;
@@ -17,6 +18,7 @@ public interface UserMapper {
         user.setAccountNumber(generateAccountNumber());
         user.setAccountBalance(BigDecimal.ZERO);
         user.setStatus("ACTIVE");
+        user.setRole(Role.ROLE_USER);
     }
 
 }

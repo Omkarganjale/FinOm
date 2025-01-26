@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Data
 @Builder
@@ -26,5 +27,9 @@ public class TransferRequest {
     @Schema(
             name = "Transaction Amount"
     )
-    private BigDecimal amount; //TODO: round off upto 2 decimal places
+    private BigDecimal amount;
+
+    public void setAmount(BigDecimal amt){
+        this.amount = amt.setScale(2, RoundingMode.HALF_EVEN);
+    }
 }
